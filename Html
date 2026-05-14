@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>أكاديمية مصطفى للغة العربية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Tajawal', sans-serif; }</style>
+</head>
+<body class="bg-gray-50">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-md p-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-indigo-700">أكاديمية مصطفى</h1>
+        <div id="nav-links">
+            <button onclick="showPage('login')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg">دخول</button>
+        </div>
+    </nav>
+
+    <!-- Pages Container -->
+    <main id="app" class="container mx-auto p-6">
+        
+        <!-- Home Page -->
+        <section id="home-page" class="text-center py-20">
+            <h2 class="text-5xl font-bold mb-4">تعلم اللغة العربية باحترافية</h2>
+            <p class="text-gray-600 mb-8 text-xl">المنصة الأولى لطلاب الثانوية العامة في مصر</p>
+            <div class="flex justify-center gap-4">
+                <button onclick="showPage('register')" class="bg-indigo-600 text-white px-8 py-3 rounded-full text-lg">ابدأ الآن</button>
+                <button class="border border-indigo-600 text-indigo-600 px-8 py-3 rounded-full text-lg">تواصل معنا</button>
+            </div>
+        </section>
+
+        <!-- Auth Pages -->
+        <section id="auth-page" class="hidden max-w-md mx-auto bg-white p-8 rounded-xl shadow-lg mt-10">
+            <h2 id="auth-title" class="text-2xl font-bold mb-6 text-center">تسجيل الدخول</h2>
+            <div class="space-y-4">
+                <input id="auth-name" type="text" placeholder="الاسم الكامل" class="w-full p-3 border rounded-lg hidden">
+                <input id="auth-email" type="email" placeholder="البريد الإلكتروني" class="w-full p-3 border rounded-lg">
+                <input id="auth-pass" type="password" placeholder="كلمة المرور" class="w-full p-3 border rounded-lg">
+                <button onclick="handleAuth()" id="auth-btn" class="w-full bg-indigo-600 text-white p-3 rounded-lg">دخول</button>
+                <p onclick="toggleAuth()" id="auth-toggle" class="text-center text-sm text-indigo-600 cursor-pointer">ليس لديك حساب؟ سجل الآن</p>
+            </div>
+        </section>
+
+        <!-- Student Dashboard -->
+        <section id="student-dash" class="hidden">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="text-3xl font-bold">مرحباً <span id="user-name-display"></span></h2>
+                <button onclick="logout()" class="text-red-500">خروج</button>
+            </div>
+            
+            <div class="bg-indigo-100 p-6 rounded-xl mb-8 flex flex-col md:flex-row justify-between items-center">
+                <div>
+                    <h3 class="font-bold text-lg">تفعيل الاشتراك</h3>
+                    <p>أدخل الكود الخاص بك لفتح جميع المحاضرات</p>
+                </div>
+                <div class="flex gap-2 mt-4 md:mt-0">
+                    <input id="activation-code" type="text" placeholder="XXXX-XXXX" class="p-2 rounded-lg border">
+                    <button onclick="activateCode()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg">تفعيل</button>
+                </div>
+            </div>
+
+            <div id="lectures-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Lectures load here -->
+            </div>
+        </section>
+
+        <!-- Admin Dashboard -->
+        <section id="admin-dash" class="hidden">
+            <h2 class="text-3xl font-bold mb-8">لوحة التحكم (المعلم)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow">
+                    <h3 class="font-bold mb-4">إضافة محاضرة جديدة</h3>
+                    <div class="space-y-4">
+                        <input id="lec-title" placeholder="عنوان الدرس" class="w-full p-2 border rounded">
+                        <textarea id="lec-desc" placeholder="وصف قصير" class="w-full p-2 border rounded"></textarea>
+                        <input id="lec-url" placeholder="رابط الفيديو (YouTube/Vimeo)" class="w-full p-2 border rounded">
+                        <button onclick="addLecture()" class="w-full bg-green-600 text-white p-2 rounded">نشر المحاضرة</button>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow text-center">
+                    <h3 class="font-bold mb-4">توليد أكواد الاشتراك</h3>
+                    <button onclick="generateCode()" class="bg-indigo-600 text-white px-6 py-3 rounded-lg mb-4">إنشاء كود جديد</button>
+                    <div id="generated-code" class="text-2xl font-mono text-indigo-800 font-bold"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        let currentUser = null;
+        let isLoginMode = true;
+
+        function showPage(pageId) {
+            document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+            if(pageId === 'login') {
+                document.getElementById('auth-page').classList.remove('hidden');
+            } else if(pageId === 'register') {
+                isLoginMode = false;
+                toggleAuth();
+                document.getElementById('auth-page').classList.remove('hidden');
+            } else {
+                document.getElementById(pageId).classList.remove('hidden');
+            }
+        }
+
+        function toggleAuth() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('auth-title').innerText = isLoginMode ? 'تسجيل الدخول' : 'حساب جديد';
+            document.getElementById('auth-name').classList.toggle('hidden', isLoginMode);
+            document.getElementById('auth-btn').innerText = isLoginMode ? 'دخول' : 'تسجيل';
+        }
+
+        async function handleAuth() {
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-pass').value;
+            const name = document.getElementById('auth-name').value;
+            
+            const url = isLoginMode ? '/auth/login' : '/auth/register';
+            const body = isLoginMode ? { email, password } : { name, email, password };
+
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            const data = await res.json();
+            if(res.ok) {
+                if(isLoginMode) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data));
+                    initApp();
+                } else {
+                    alert('تم التسجيل بنجاح، يمكنك الدخول الآن');
+                    isLoginMode = true;
+                    toggleAuth();
+                }
+            } else {
+                alert(data.message);
+            }
+        }
+
+        async function initApp() {
+            const user = JSON.parse(localStorage.getItem('user'));
+            if(!user) return showPage('home-page');
+            
+            if(user.role === 'admin') {
+                showPage('admin-dash');
+            } else {
+                document.getElementById('user-name-display').innerText = user.name;
+                showPage('student-dash');
+                loadLectures();
+            }
+        }
+
+        async function loadLectures() {
+            const res = await fetch('/lectures', {
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+            });
+            const lectures = await res.json();
+            const grid = document.getElementById('lectures-grid');
+            grid.innerHTML = lectures.map(l => `
+                <div class="bg-white p-4 rounded-xl shadow border-t-4 ${l.locked ? 'border-gray-300' : 'border-indigo-600'}">
+                    <h4 class="font-bold text-lg mb-2">${l.title}</h4>
+                    <p class="text-gray-500 text-sm mb-4">${l.description}</p>
+                    ${l.locked ? 
+                        `<div class="bg-gray-100 text-center py-4 rounded text-gray-400">🔒 محتوى مدفوع</div>` : 
+                        `<iframe class="w-full rounded" src="${l.videoUrl.replace('watch?v=', 'embed/')}" frameborder="0"></iframe>`
+                    }
+                </div>
+            `).join('');
+        }
+
+        async function activateCode() {
+            const code = document.getElementById('activation-code').value;
+            const res = await fetch('/activate-code', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                },
+                body: JSON.stringify({ code })
+            });
+            const data = await res.json();
+            alert(data.message);
+            if(res.ok) loadLectures();
+        }
+
+        async function generateCode() {
+            const res = await fetch('/admin/code', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+            });
+            const data = await res.json();
+            document.getElementById('generated-code').innerText = data.key;
+        }
+
+        async function addLecture() {
+            const body = {
+                title: document.getElementById('lec-title').value,
+                description: document.getElementById('lec-desc').value,
+                videoUrl: document.getElementById('lec-url').value
+            };
+            await fetch('/admin/lecture', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                },
+                body: JSON.stringify(body)
+            });
+            alert('تمت إضافة المحاضرة');
+        }
+
+        function logout() {
+            localStorage.clear();
+            location.reload();
+        }
+
+        // Check login on start
+        if(localStorage.getItem('token')) initApp();
+    </script>
+</body>
+</html>
