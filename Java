@@ -1,0 +1,106 @@
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const fs = require('fs-extra');
+const path = require('path');
+const bodyParser = require('body-parser');
+
+const app = express();
+const PORT = 3000;
+const SECRET_KEY = 'mostafa_academy_secret_key_2024';
+const DB_FILE = './data.json';
+
+app.use(bodyParser.json());
+app.use(express.static('public'));
+
+// Initialize Database
+async function initDB() {
+    if (!await fs.pathExists(DB_FILE)) {
+        await fs.writeJson(DB_FILE, { users: [], lectures: [], codes: [] });
+    }
+}
+initDB();
+
+// --- Middlewares ---
+const authenticate = (req, res, next) => {
+    const token = req.headers['authorization'];
+    if (!token) return res.status(401).send({ message: 'Access Denied' });
+    try {
+        const verified = jwt.verify(token.split(" ")[1], SECRET_KEY);
+        req.user = verified;
+        next();
+    } catch (err) { res.status(400).send({ message: 'Invalid Token' }); }
+};
+
+const isAdmin = (req, res, next) => {
+    if (req.user.role !== 'admin') return res.status(403).send({ message: 'Admin Access Required' });
+    next();
+};
+
+// --- Auth APIs ---
+app.post('/auth/register', async (req, res) => {
+    const db = await fs.readJson(DB_FILE);
+    const { name, email, password } = req.body;
+    if (db.users.find(u => u.email === email)) return res.status(400).send({ message: 'User exists' });
+    
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = { id: Date.now(), name, email, password: hashedPassword, role: 'student', isSubscribed: false };
+    db.users.push(newUser);
+    await fs.writeJson(DB_FILE, db);
+    res.send({ message: 'User Registered' });
+});
+
+app.post('/auth/login', async (req, res) => {
+    const db = await fs.readJson(DB_FILE);
+    const user = db.users.find(u => u.email === req.body.email);
+    if (!user || !await bcrypt.compare(req.body.password, user.password)) {
+        return res.status(400).send({ message: 'Invalid Credentials' });
+    }
+    const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, SECRET_KEY);
+    res.send({ token, role: user.role, name: user.name });
+});
+
+// --- Content APIs ---
+app.get('/lectures', authenticate, async (req, res) => {
+    const db = await fs.readJson(DB_FILE);
+    const user = db.users.find(u => u.id === req.user.id);
+    const lectures = db.lectures.map(l => ({
+        ...l,
+        videoUrl: (user.isSubscribed || req.user.role === 'admin') ? l.videoUrl : null,
+        locked: !user.isSubscribed && req.user.role !== 'admin'
+    }));
+    res.send(lectures);
+});
+
+app.post('/activate-code', authenticate, async (req, res) => {
+    const { code } = req.body;
+    const db = await fs.readJson(DB_FILE);
+    const codeIdx = db.codes.findIndex(c => c.key === code && !c.used);
+    
+    if (codeIdx === -1) return res.status(400).send({ message: 'Invalid or used code' });
+    
+    db.codes[codeIdx].used = true;
+    const userIdx = db.users.findIndex(u => u.id === req.user.id);
+    db.users[userIdx].isSubscribed = true;
+    
+    await fs.writeJson(DB_FILE, db);
+    res.send({ message: 'Account Activated Successfully' });
+});
+
+// --- Admin APIs ---
+app.post('/admin/lecture', authenticate, isAdmin, async (req, res) => {
+    const db = await fs.readJson(DB_FILE);
+    db.lectures.push({ id: Date.now(), ...req.body });
+    await fs.writeJson(DB_FILE, db);
+    res.send({ message: 'Lecture Added' });
+});
+
+app.post('/admin/code', authenticate, isAdmin, async (req, res) => {
+    const db = await fs.readJson(DB_FILE);
+    const newCode = { key: Math.random().toString(36).substring(2, 10).toUpperCase(), used: false };
+    db.codes.push(newCode);
+    await fs.writeJson(DB_FILE, db);
+    res.send(newCode);
+});
+
+app.listen(PORT, () => console.log(`Academy running on http://localhost:${PORT}`));
